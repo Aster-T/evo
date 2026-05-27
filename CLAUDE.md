@@ -85,6 +85,24 @@ conda run -n evo python -m src.analysis.stats           # 汇总表 + Wilcoxon
 - [x] 实验框架 + 冒烟
 - [x] 分析出图（fig0 landscape / fig1 收敛 / fig2 箱线 / fig3 恢复 / fig4 敏感性）
 - [x] 完整实验：270 runs，41s 完成 → results/raw.csv 等
+- [x] **真实数据部分**（投资组合 + Wine 聚类，复用同一套 GA/PSO/DE，见下）
+
+## 真实数据扩展（课程要求的「真实数据」部分）
+仿真数据（GMPB）+ 真实数据共同构成完整报告。真实数据用 `StaticObjective` 适配层
+（src/problems/static.py）让动态 GA/PSO/DE **零改动**求解静态问题（`changed` 恒 False）。
+- 数据：Beasley OR-Library port1–5（真实指数）+ yfinance S&P 自建（抓一次缓存 data/）；UCI Wine Quality 红/白。
+- 问题：投资组合（softmax 解码 + 基数约束 K=10，最大化夏普）/ 聚类（簇中心优化，最小化 SSE）。
+- 代码：src/data/、src/problems/、src/experiments/{config_real,runner_real,run_all_real}.py、
+  src/analysis/{baselines,plots_real,stats_real}.py；tests/test_real_problems.py（13 passed）。
+- 命令：`run_all_real --problem all`（450 runs，约 2.7 min）→ `stats_real` / `plots_real`。
+- 报告初稿：report/real_data_report.md（按附件1大纲）。
+
+### 真实数据关键结论
+- 投资组合：无约束实例三算法均逼近凸 QP 全局最优（gap≈0），远超等权基线；基数约束下 **DE 最优**
+  （Friedman 秩 1.25 < PSO 2.0 < GA 2.75，p=0.011；Nemenyi DE≻GA p=0.008），DE 方差最小最稳健。
+- 聚类：**DE** 的 SSE 最接近强基线 k-means++（红酒 +2.3%、白酒 +3.5%），方差最小；
+  PSO 早期快、DE 后期反超。ARI/NMI 普遍低（Wine 质量评分与几何簇结构弱相关，数据固有）。
+- 与 GMPB 一致：DE 在中-高维稳健占优 → No Free Lunch，算法选型依问题特性。
 
 ## 关键结论（完整实验，Offline Error 均值）
 | 实例 | GA | PSO | DE | 最优 |
