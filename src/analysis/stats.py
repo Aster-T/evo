@@ -27,17 +27,20 @@ def load(metric_csv: str = "raw.csv") -> pd.DataFrame:
     return pd.read_csv(RESULTS_DIR / metric_csv)
 
 
-def summary_table(df: pd.DataFrame, metric: str = "offline_error") -> pd.DataFrame:
+def summary_table(df: pd.DataFrame, metric: str = "offline_error",
+                  instance_order: list[str] | None = None) -> pd.DataFrame:
+    order = instance_order or INSTANCE_ORDER
     g = df.groupby(["instance", "algorithm"])[metric]
     out = g.agg(best="min", worst="max", mean="mean", median="median", std="std").reset_index()
-    out["instance"] = pd.Categorical(out["instance"], INSTANCE_ORDER, ordered=True)
+    out["instance"] = pd.Categorical(out["instance"], order, ordered=True)
     out["algorithm"] = pd.Categorical(out["algorithm"], ALGORITHM_NAMES, ordered=True)
     return out.sort_values(["instance", "algorithm"]).reset_index(drop=True)
 
 
-def wilcoxon_table(df: pd.DataFrame, metric: str = "offline_error") -> pd.DataFrame:
+def wilcoxon_table(df: pd.DataFrame, metric: str = "offline_error",
+                   instance_order: list[str] | None = None) -> pd.DataFrame:
     rows = []
-    for inst in INSTANCE_ORDER:
+    for inst in (instance_order or INSTANCE_ORDER):
         sub = df[df.instance == inst]
         if sub.empty:
             continue
@@ -62,10 +65,12 @@ def wilcoxon_table(df: pd.DataFrame, metric: str = "offline_error") -> pd.DataFr
     return pd.DataFrame(rows)
 
 
-def friedman_nemenyi(df: pd.DataFrame, metric: str = "offline_error") -> str:
+def friedman_nemenyi(df: pd.DataFrame, metric: str = "offline_error",
+                     instance_order: list[str] | None = None) -> str:
     """跨实例 Friedman：以每个实例的算法均值为一个 block。"""
+    order = instance_order or INSTANCE_ORDER
     means = df.groupby(["instance", "algorithm"])[metric].mean().unstack()[ALGORITHM_NAMES]
-    present = [i for i in INSTANCE_ORDER if i in means.index]
+    present = [i for i in order if i in means.index]
     means = means.loc[present]
     stat, p = friedmanchisquare(*[means[a].to_numpy() for a in ALGORITHM_NAMES])
     # 平均秩（秩 1 = 最优 = 误差最小）
@@ -73,7 +78,7 @@ def friedman_nemenyi(df: pd.DataFrame, metric: str = "offline_error") -> str:
     avg_rank = ranks.mean(axis=0)
 
     lines = [
-        "跨实例 Friedman 检验（基于各实例 Offline Error 均值）",
+        f"跨实例 Friedman 检验（基于各实例 {metric} 均值）",
         f"  统计量 chi2 = {stat:.4f},  p = {p:.4g}",
         "  平均秩（越小越好）：",
     ]
