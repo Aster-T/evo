@@ -88,8 +88,17 @@
 
 ### 3.2 实验结果与分析
 
-配套图表（`figures/`）：`fig1_func_convergence`（5 函数收敛曲线）、`fig2_func_box`（最终 f 箱线）、
-`fig3_tsp_box`（gap 箱线）、`fig4_tsp_convergence`（TSP 收敛）、`fig5_tsp_routes`（最优路线对比）。
+配套图表见下文。
+
+![图1 五个测试函数上的收敛曲线（均值，d=30，纵轴对数）](../figures/fig1_func_convergence.png)
+
+![图2 各函数最终最优 f 的箱线图（15 次重复，纵轴对数）](../figures/fig2_func_box.png)
+
+![图3 各 TSP 实例的最优 gap% 箱线图（15 次重复）](../figures/fig3_tsp_box.png)
+
+![图4 kroA100 上的 TSP 收敛曲线（均值±标准差）](../figures/fig4_tsp_convergence.png)
+
+![图5 berlin52 上三算法的最优巡回路线对比](../figures/fig5_tsp_routes.png)
 
 #### 表 3.1 仿真：最终最优 f（d=30，15 次均值±标准差，**粗体=三算法最优**）
 
