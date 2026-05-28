@@ -1,0 +1,573 @@
+% !TEX program = xelatex
+% =========================================================
+%  2025--2026《仿生算法的数学基础》课程考察 · 数据分析报告
+%  基于 GA / ACO / PSO 三种仿生算法的对比分析
+%  ——以教材 Appendix C 测试函数与 TSPLIB 真实 TSP 为例
+% =========================================================
+\documentclass[12pt,a4paper,fontset=windows]{ctexart}
+
+% --- 几何与排版 ---
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\usepackage{indentfirst}
+\setlength{\parskip}{4pt}
+
+% --- 数学 ---
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
+
+% --- 图与三线表 ---
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=normalfont,labelsep=quad}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tabularx}
+
+% --- 超链接：全黑、无下划线、无色 ---
+\usepackage[hidelinks]{hyperref}
+
+% --- 流程图 ---
+\usepackage{tikz}
+\usetikzlibrary{shapes.geometric,arrows.meta,positioning,calc}
+
+% --- 图片搜索路径 ---
+\graphicspath{{../figures/}}
+
+% --- 标题样式：中文用黑体字族（字体替换、非 \bfseries 加粗修饰）---
+\ctexset{
+  section/format={\Large\heiti\centering},
+  subsection/format={\large\heiti},
+  subsubsection/format={\normalsize\heiti},
+  paragraph/format={\normalsize\heiti},
+}
+\setcounter{secnumdepth}{3}
+
+% --- 数学算子与简写 ---
+\newcommand{\R}{\mathbb{R}}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+
+% --- 页面样式：去掉顶部章节页眉，仅保留底部居中页码 ---
+\pagestyle{plain}
+
+% =========================================================
+\begin{document}
+
+% ----------------- 封面 -----------------
+\begin{titlepage}
+  \centering
+  \vspace*{2.5cm}
+  {\Huge\heiti 基于 GA / ACO / PSO 三种仿生算法的\\[8pt]
+   对比分析报告\par}
+  \vspace{0.6cm}
+
+  \vspace{2.4cm}
+
+  \begin{tabular}{rl}
+    \heiti 学\quad 号: & \underline{\hspace{4.5cm}} \\[8pt]
+    \heiti 姓\quad 名: & \underline{\hspace{4.5cm}} \\[8pt]
+  \end{tabular}
+\end{titlepage}
+
+\tableofcontents
+\newpage
+
+% =========================================================
+\section{数据集来源及理解}
+\label{sec:data}
+
+本报告同时使用仿真数据与真实数据两类数据集，覆盖连续优化与组合优化两种典型场景，
+用于全面评估GA、ACO、PSO三种仿生算法的精度、收敛速度、稳健性及其适用边界。
+
+\subsection{仿真数据：教材 Appendix C测试函数}
+
+仿真部分选用Evolutionary Optimization AlgorithmsAppendix C中的5个
+经典无约束连续测试函数，覆盖单峰、谷型、规则强多峰、多峰带浅局部极小、多峰弱耦合等多种
+地形难度。所有函数均为最小化问题且全局最优值 $f^{\ast}=0$。函数表达式、教材规定的搜索域
+与全局最优点见表~\ref{tab:func}。
+
+\begin{table}[H]
+  \centering
+  \caption{Appendix C 5个测试函数（维度 $d=30$，最小化）}
+  \label{tab:func}
+  \small
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lllll}
+    \toprule
+    名称 & 教材节号 & 表达式 & 定义域（各维） & 全局最优点 \\
+    \midrule
+    Sphere     & C.1.1  & $\sum_i x_i^2$                                                                  & $[-5.12,\,5.12]$   & $\bm{x}=\bm{0}$ \\
+    Rosenbrock & C.1.4  & $\sum_i 100(x_{i+1}\!-\!x_i^2)^2+(x_i\!-\!1)^2$                                & $[-2.048,\,2.048]$ & $\bm{x}=\bm{1}$ \\
+    Rastrigin  & C.1.11 & $10d+\sum_i[x_i^2-10\cos(2\pi x_i)]$                                            & $[-5.12,\,5.12]$   & $\bm{x}=\bm{0}$ \\
+    Ackley     & C.1.2  & $-20\,e^{-0.2\sqrt{\sum x_i^2/d}} - e^{\sum\cos(2\pi x_i)/d} + 20 + e$         & $[-30,\,30]$       & $\bm{x}=\bm{0}$ \\
+    Griewank   & C.1.6  & $\sum_i x_i^2/4000 - \prod_i\cos(x_i/\sqrt{i}) + 1$                            & $[-600,\,600]$     & $\bm{x}=\bm{0}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{真实数据：TSPLIB真实城市坐标TSP}
+
+真实数据采用 TSPLIB（Reinelt 1991）—— 求解旅行商问题（TSP）的国际标准基准库，
+坐标为真实地理或电路布局位置。本报告选取 4 个不同规模的实例，均采用 EUC\_2D 边权
+$d_{ij}=\mathrm{round}\!\big(\!\sqrt{\Delta x^2+\Delta y^2}\big)$，并配以已知最优巡回长度
+用于评估各算法的最优性差距 gap\%。实例见表~\ref{tab:tsp}。
+
+\begin{table}[H]
+  \centering
+  \caption{TSPLIB 实例及已知最优巡回长度}
+  \label{tab:tsp}
+  \small
+  \begin{tabular}{lrlr}
+    \toprule
+    实例 & 城市数 $n$ & 数据来源 & 已知最优 \\
+    \midrule
+    berlin52 & 52  & 柏林 52 个真实地点（Groetschel）   & 7542  \\
+    eil51    & 51  & 51 城测试集（Christofides--Eilon）  & 426   \\
+    kroA100  & 100 & 100 城（Krolak）                    & 21282 \\
+    ch150    & 150 & 150 城（Churritz）                  & 6528  \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+% =========================================================
+\section{问题描述与解决思路}
+\label{sec:formulation}
+
+\subsection{分析目标}
+
+\paragraph{总目标}
+在连续优化与组合优化两类问题上，系统比较 GA、ACO、PSO 三种仿生算法的最终精度、
+收敛速度与重复实验稳健性，回答两个核心问题：
+
+\begin{enumerate}
+  \item 不同算法在不同问题维度、不同地形特性、不同编码空间下的相对优劣是什么？
+  \item 同一算法思想（如 ACO）在其本职问题域与外推到其他问题域时，性能差异是否显著？
+\end{enumerate}
+
+\paragraph{仿真数据：连续优化的数学化}
+对每个测试函数 $f:\R^d\to\R$（见表~\ref{tab:func}）求
+\begin{equation}
+  \min_{\bm{x}\in[lb,ub]^d}\ f(\bm{x}),
+\end{equation}
+评价指标采用最终最优值 $f_{\rm best}$、达成阈值 $f<10^{-2}$ 的成功率，以及按函数评估次数
+（FE）记录的 best-so-far 收敛曲线。
+
+\paragraph{真实数据：TSP 的数学化}
+给定 $n$ 个城市的坐标集合，求访问每个城市恰好一次并回到起点的最短闭合回路
+$\pi=(\pi_1,\dots,\pi_n)\in S_n$：
+\begin{equation}
+  \min_{\pi}\ L(\pi) = \sum_{i=1}^{n-1} d(\pi_i,\pi_{i+1}) + d(\pi_n, \pi_1).
+\end{equation}
+评价指标采用最终巡回长度 $L_{\rm best}$、相对已知最优的差距
+\[
+  \mathrm{gap}\,\%=\frac{L_{\rm best}-L^{\ast}}{L^{\ast}}\times 100\%,
+\]
+以及收敛曲线与最优路线图。
+
+\subsection{具体方法和流程}
+
+\paragraph{算法形态对照}
+GA、ACO、PSO 的核心思想（重组与变异、信息素引导、群体协同）可以同时实例化到连续空间与
+排列空间，但所需算子完全不同。本报告对三种算法在两类问题上分别采用如下两种形态：
+
+\begin{itemize}
+  \item \emph{GA}：连续测试函数上采用实数编码，算子为[锦标赛选择 + SBX 交叉 + 多项式变异 + 精英保留]；
+        TSP 上改为排列编码，算子为[锦标赛选择 + 顺序交叉 OX + 反转变异 + 精英保留]。
+  \item \emph{ACO}：连续测试函数上采用 \emph{ACOR}（Socha \& Dorigo 2008）—— 维护大小为 $k$
+        的解档案，逐维按 rank 权重选取引导解并以高斯核采样新解，模拟信息素的连续表征；
+        TSP 上采用经典 \emph{Ant System}（Dorigo 1996）—— 信息素矩阵 $\tau$ 与启发式 $\eta=1/d_{ij}$
+        协同引导蚂蚁概率构造巡回，迭代蒸发与沉积。
+  \item \emph{PSO}：连续测试函数上采用标准 gbest PSO —— 线性衰减的惯性权重 $w$、速度钳制、
+        个体最优与全局最优的双重引导；TSP 上改为离散交换序列 PSO（Clerc 2004）——
+        把"速度"重新定义为有序交换算子序列，按惯性、认知、社会三个概率把"位置变成
+        $p_{\rm best}$ / $g_{\rm best}$ 所需的交换序列"施加到当前排列上。
+\end{itemize}
+
+\paragraph{选型理由}
+ACO 由 Dorigo 等人最初为求解 TSP 而提出，将其置于 TSP 上是其\emph{本职问题}，
+符合"在合适问题上对比合适算法"的方法论；而要在连续测试函数上保持三算法齐全的公平对比，
+ACO 需要采用其连续推广 ACOR（Socha \& Dorigo 2008），利用解档案与高斯核采样模拟
+信息素的连续表征。GA 与 PSO 均同时支持实数与排列编码，分别采用各自标准的实数与离散形态。
+
+\paragraph{公平性约定}
+为保证横向可比，三种算法在同一问题、同一随机种子下满足如下约束：
+
+\begin{itemize}
+  \item 相同的函数评估（FE）预算：连续 30000、TSP 20000；
+  \item 相互独立的随机数发生器，由共享 seed 派生，问题随机性与算法随机性互不耦合；
+  \item 算法只通过问题对象的 \emph{evaluate} 接口访问目标，FE 计数、best-so-far 曲线与预算
+        判定由问题对象内部统一维护，算法不自报指标。
+\end{itemize}
+
+\paragraph{实验流程}
+图~\ref{fig:pipeline} 给出本报告的实验执行流程：所有算法在固定 FE 预算内循环
+"生成–评估–更新"三步骤直至预算耗尽，最后返回 best-so-far 解与收敛曲线。
+
+\begin{figure}[H]
+  \centering
+  \begin{tikzpicture}[
+    node distance=10mm,
+    box/.style={draw,rectangle,rounded corners=2pt,
+                minimum width=38mm,minimum height=9mm,align=center,font=\small},
+    decision/.style={draw,diamond,aspect=2,inner sep=0pt,
+                     align=center,font=\small,minimum width=34mm,minimum height=12mm},
+    arr/.style={-Latex,thick},
+  ]
+    \node[box]                              (init) {初始化种群 / 信息素 / 解档案};
+    \node[box, below=of init]               (gen)  {生成新候选解};
+    \node[box, below=of gen]                (eval) {评估目标值并累计 FE};
+    \node[box, below=of eval]               (upd)  {更新历史最优 / 信息素 / 档案};
+    \node[decision, below=of upd]           (cond) {FE 预算耗尽？};
+    \node[box, below=of cond]               (ret)  {输出最优解与收敛曲线};
+    \draw[arr] (init) -- (gen);
+    \draw[arr] (gen)  -- (eval);
+    \draw[arr] (eval) -- (upd);
+    \draw[arr] (upd)  -- (cond);
+    \draw[arr] (cond) -- node[right,font=\small,pos=0.4]{是} (ret);
+    \coordinate (loop) at ([xshift=2.2cm]cond.east);
+    \draw[arr] (cond.east) -- node[above,font=\small,pos=0.55]{否} (loop)
+                |- (gen.east);
+  \end{tikzpicture}
+  \caption{实验执行流程图：所有算法共用同一主循环结构，"生成新候选解"步骤由各算法自身的算子实现。}
+  \label{fig:pipeline}
+\end{figure}
+
+% =========================================================
+\section{实验及分析}
+\label{sec:exp}
+
+\subsection{实验方法、工具、环境}
+
+\paragraph{编程语言}
+Python 3.12
+\paragraph{主要依赖}
+NumPy、SciPy、pandas、matplotlib、seaborn、joblib、scikit-posthocs、requests。
+
+\paragraph{算法参数}
+所有参数取文献推荐或常用默认值，统一种群规模约 50（仅 TSP GA 用 100，反映排列编码下
+需要更大种群维持多样性），保证横向比较公平。具体参数见表~\ref{tab:params}。
+
+\begin{table}[H]
+  \centering
+  \caption{六种算法形态的关键参数}
+  \label{tab:params}
+  \small
+  \begin{tabularx}{\linewidth}{lX}
+    \toprule
+    Variant & Key parameters \\
+    \midrule
+    GA (continuous)   & pop $=50$, $p_c=0.9$, $\eta_c=15$, $\eta_m=20$ \\
+    PSO (continuous)  & swarm $=50$, $w\!:\!0.9\!\to\!0.4$, $c_1=c_2=2.0$, $v_{\max}=0.2\,D$ \\
+    ACOR (continuous) & $k=50$, $m=10$, $q=10^{-4}$, $\xi=0.85$ \\
+    GA (TSP)          & pop $=100$, $p_c=0.9$, $p_m=0.2$, $t=3$ \\
+    ACO (TSP)         & $m=n$, $\alpha=1$, $\beta=2$, $\rho=0.5$, $Q=1$ \\
+    PSO (TSP)         & swarm $=50$, $w=0.3$, $c_1=0.7$, $c_2=0.9$ \\
+    \bottomrule
+  \end{tabularx}
+\end{table}
+
+\paragraph{符号说明}
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item pop / swarm —— 种群规模
+  \item $p_c$ —— 交叉概率
+  \item $p_m$ —— 变异概率
+  \item $\eta_c$ —— SBX 交叉分布指数
+  \item $\eta_m$ —— 多项式变异分布指数
+  \item $w$ —— 惯性权重（连续 PSO 由 0.9 线性衰减至 0.4）
+  \item $c_1,\ c_2$ —— 认知 / 社会加速系数
+  \item $v_{\max}$ —— 速度上限；连续 PSO 取 $0.2\,D$，$D$ 为定义域宽度
+  \item $k$ —— ACOR 解档案大小
+  \item $m$ —— 蚂蚁数（TSP ACO 中 $m=n$，$n$ 为城市数）
+  \item $q,\ \xi$ —— ACOR 局部性 / 收敛速率控制
+  \item $\alpha,\ \beta$ —— 信息素与启发式指数
+  \item $\rho$ —— 信息素蒸发率
+  \item $Q$ —— 信息素沉积常数
+  \item $t$ —— 锦标赛规模
+  \item 算子：连续 GA 用 SBX + 多项式变异；TSP GA 用 OX 交叉 + 反转变异；TSP PSO 用 Clerc 2004 交换序列离散形式
+\end{itemize}
+
+\paragraph{实验规模}
+\begin{itemize}\setlength{\itemsep}{0pt}
+  \item 仿真 —— 3 算法 $\times$ 5 函数 $\times$ 15 重复 $= 225$ 次独立运行，维度 $d=30$，每次 FE 预算 30000
+  \item 真实 TSP —— 3 算法 $\times$ 4 实例 $\times$ 15 重复 $= 180$ 次运行，每次 FE 预算 20000
+\end{itemize}
+
+
+\paragraph{评价与统计检验}
+仿真主指标：最终最优 $f_{\rm best}$、成功率（$f<10^{-2}$）、收敛曲线；TSP 主指标：
+最优巡回长度、gap\%、收敛曲线与最优路线图。实例内三算法两两采用 Wilcoxon 符号秩配对
+检验（按种子配对，$\alpha=0.05$）；跨实例综合排名采用 Friedman 秩检验，
+若整体显著则继续 Nemenyi 事后两两比较。
+
+\subsection{仿真实验结果与分析}
+
+\paragraph{主结果表}
+表~\ref{tab:func_main} 汇总三算法在 5 个测试函数上的 15 次重复 best 值（均值 $\pm$ 标准差），
+最优值（即该行三算法的最小均值）在数值后以上标 $\ast$ 标记，表注注明。
+
+\begin{table}[H]
+  \centering
+  \caption{Appendix C 测试函数最终 best $f$ 均值 $\pm$ 标准差（$d=30$，15 次重复，越小越好；标 $\ast$ 者为该行各算法的最小值）}
+  \label{tab:func_main}
+  \small
+  \begin{tabular}{lccc}
+    \toprule
+    函数 & GA & ACO（ACOR） & PSO \\
+    \midrule
+    Sphere     & $3.0\times 10^{-3} \pm 1.6\times 10^{-3}$
+               & $7.8\times 10^{-40} \pm 1.7\times 10^{-39}\,^{\ast}$
+               & $6.0\times 10^{-5} \pm 4.1\times 10^{-5}$ \\
+    Rosenbrock & $44.2 \pm 26$
+               & $20.7 \pm 15\,^{\ast}$
+               & $27.0 \pm 0.9$ \\
+    Rastrigin  & $21.1 \pm 4.3\,^{\ast}$
+               & $125.3 \pm 29$
+               & $57.0 \pm 20$ \\
+    Ackley     & $0.83 \pm 0.37$
+               & $9.38 \pm 5.0$
+               & $0.33 \pm 0.56\,^{\ast}$ \\
+    Griewank   & $0.80 \pm 0.13$
+               & $0.17 \pm 0.48$
+               & $0.07 \pm 0.06\,^{\ast}$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{成功率}
+将 $f_{\rm best}<10^{-2}$ 视为"成功"。除单峰 Sphere 三算法 100\% 成功外，
+30 维下其余多峰函数普遍难以达标，仅 ACOR 在 Griewank 上有 27\% 成功率
+（见表~\ref{tab:func_succ}）。
+
+\begin{table}[H]
+  \centering
+  \caption{15 次重复中达成阈值 $f<10^{-2}$ 的比例}
+  \label{tab:func_succ}
+  \small
+  \begin{tabular}{lccc}
+    \toprule
+    函数 & GA & ACO（ACOR） & PSO \\
+    \midrule
+    Sphere     & 1.00 & 1.00 & 1.00 \\
+    Rosenbrock & 0.00 & 0.00 & 0.00 \\
+    Rastrigin  & 0.00 & 0.00 & 0.00 \\
+    Ackley     & 0.00 & 0.00 & 0.00 \\
+    Griewank   & 0.00 & 0.27 & 0.00 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{fig1_func_convergence.pdf}
+  \caption{5 个测试函数上三算法 best-so-far 平均收敛曲线（横轴函数评估次数，纵轴对数刻度）。}
+  \label{fig:func_conv}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig2_func_box.pdf}
+  \caption{5 函数最终最优值的箱线图（15 次重复，纵轴对数刻度）。}
+  \label{fig:func_box}
+\end{figure}
+
+\paragraph{显著性}
+跨 5 函数的 Friedman 秩检验得 $\chi^2=1.6$、$p=0.45$（未达 $0.05$ 显著水平），
+平均秩 PSO $1.6 <$ ACO $2.0 <$ GA $2.4$。整体未显著反映出三算法在不同地形上互有
+胜负、不存在普适赢家。两两 Wilcoxon 在大多数函数上仍能得到 $p<0.05$ 的实例内
+显著差异。
+
+\paragraph{结果分析}
+
+\begin{enumerate}
+  \item ACOR 在光滑地形上精度极高：Sphere 上达 $\sim10^{-40}$，比 PSO 的 $10^{-5}$
+        与 GA 的 $10^{-3}$ 高出数十个数量级；谷型 Rosenbrock 上也最优（20.7）。
+        这印证了 ACOR 的解档案 $+$ 高斯核采样在平滑、强单峰地形上的快速收敛优势。
+  \item ACOR 在强多峰地形上明显劣化：Rastrigin 高达 125.3、Ackley 为 9.4，反映出
+        档案过快收紧导致样本集中于局部极小区域、丧失全局探索能力，体现典型的"早熟"。
+  \item PSO 在多峰地形上最强：Ackley（0.33）与 Griewank（0.07）均居首。
+        群体多样性与惯性权重线性衰减的探索--开发平衡机制契合多峰场景。
+  \item GA 在最崎岖的 Rastrigin 上反而最优（21.1）：SBX 与多项式变异结合提供了较强
+        局部精修与广域扰动的平衡，使其在规则多峰陷阱密集的地形中维持较好的种群多样性。
+  \item Friedman 平均秩 PSO $<$ ACO $<$ GA 表明 PSO 在连续测试函数集合上整体最好，
+        但三者秩差较小，体现"地形决定胜负"的 No Free Lunch 现象。
+\end{enumerate}
+
+\subsection{真实数据（TSP）实验结果与分析}
+
+\paragraph{主结果表}
+表~\ref{tab:tsp_main} 汇总三算法在 4 个 TSP 实例上的 gap\%（越小越好），
+标 $\ast$ 者为该行最小值。
+
+\begin{table}[H]
+  \centering
+  \caption{TSP 各实例 15 次重复 gap\% 均值 $\pm$ 标准差（越小越好；标 $\ast$ 者为该行各算法的最小值）}
+  \label{tab:tsp_main}
+  \small
+  \begin{tabular}{lccc}
+    \toprule
+    实例 & GA & ACO & PSO \\
+    \midrule
+    berlin52 & $46.6 \pm 6.4$  & $0.9 \pm 0.8\,^{\ast}$ & $175.4 \pm 17.0$ \\
+    eil51    & $53.6 \pm 6.3$  & $5.2 \pm 1.4\,^{\ast}$ & $163.7 \pm 10.3$ \\
+    kroA100  & $203.0 \pm 9.7$ & $8.1 \pm 1.2\,^{\ast}$ & $452.7 \pm 23.1$ \\
+    ch150    & $267.6 \pm 8.8$ & $6.5 \pm 1.4\,^{\ast}$ & $507.2 \pm 25.5$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\linewidth]{fig3_tsp_box.pdf}
+  \caption{4 个 TSP 实例的 gap\% 箱线图（15 次重复）。}
+  \label{fig:tsp_box}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.88\linewidth]{fig4_tsp_convergence.pdf}
+  \caption{kroA100 上三算法的 best-so-far 巡回长度收敛曲线（均值 $\pm$ 标准差，阴影为 $\pm 1$ 标准差带）。}
+  \label{fig:tsp_conv}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{fig5_tsp_routes.pdf}
+  \caption{berlin52 上三算法的最优巡回路线对比（每子图取该算法 15 个种子中找到的最短巡回）。}
+  \label{fig:tsp_routes}
+\end{figure}
+
+\paragraph{显著性}
+跨 4 实例 Friedman 秩检验 $\chi^2=8.0$、$p=0.018$（在 $\alpha=0.05$ 下显著），
+平均秩 ACO $1.0 <$ GA $2.0 <$ PSO $3.0$。Nemenyi 事后检验中 ACO 显著优于 PSO
+（$p=0.013$）；ACO 与 GA、GA 与 PSO 在 $\alpha=0.05$ 下未达 Nemenyi 显著，但配对
+Wilcoxon 全部 $p<10^{-3}$。
+
+\paragraph{结果分析}
+
+\begin{enumerate}
+  \item ACO 在 TSP 上绝对占优：berlin52 上 gap 仅 0.9\%，几乎达到已知最优 7542；
+        其余实例 gap 均在 10\% 以内。信息素 $+$ 启发式 $\eta=1/d_{ij}$ 的协同构造直接
+        利用了 TSP "短边优先连接"的结构，是该算法的本职舞台。图~\ref{fig:tsp_routes}
+        中 ACO 的巡回光滑且无明显交叉，与另两算法形成强烈对比。
+  \item 离散 PSO 表现最差：gap 普遍在 160\%--500\% 之间。连续 PSO 的"速度向量"
+        概念在排列空间中方向性弱化为交换序列，社会与认知系数对位置的引导大幅退化，
+        巡回杂乱多交叉。这与文献对离散 PSO 在 TSP 上的报告完全一致。
+  \item GA 居中：OX 与反转变异具备基本的局部改良能力，但缺少 TSP 专用的局部搜索
+        （如 2-opt），规模扩大后 gap 显著上升（kroA100 达 203\%，ch150 达 268\%）。
+  \item ACO 的方差最小（多数 $<2$，远小于另两算法的 $10$ 量级），说明其多次重复
+        运行的结果稳健、可重复。
+\end{enumerate}
+
+\subsection{综合比较}
+
+将仿真与真实两类场景的 Friedman 平均秩并列汇总于表~\ref{tab:overall}。
+
+\begin{table}[H]
+  \centering
+  \caption{两场景综合排名（按 Friedman 平均秩，1 = 最优；标 $\ast$ 者为该场景秩最小）}
+  \label{tab:overall}
+  \small
+  \begin{tabular}{lcccl}
+    \toprule
+    场景 & GA & ACO & PSO & 显著性 \\
+    \midrule
+    连续测试函数（5 实例） & 2.4 & 2.0 & $1.6\,^{\ast}$ & $\chi^2=1.6,\ p=0.45$（不显著） \\
+    真实 TSP（4 实例）     & 2.0 & $1.0\,^{\ast}$ & 3.0 & $\chi^2=8.0,\ p=0.018$（显著） \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\paragraph{核心规律}
+ACO 在本职的组合问题 TSP 上以绝对优势占第一名（Friedman 显著，Nemenyi
+ACO $\succ$ PSO $p=0.013$）；但其连续推广 ACOR 在多峰函数上反而最差，
+说明算法的优势高度依赖于问题结构契合度。PSO 在连续场景平均秩最优，但在组合场景沦为
+最差，体现"速度概念"在排列空间难以保留。GA 在两类场景下均居中，是稳健的全能选手。
+这正是 No Free Lunch 定理的直接实证：不存在对所有问题都最优的算法，
+算法选型必须匹配问题的编码类型与地形特性。
+
+% =========================================================
+\section{结论}
+\label{sec:conclusion}
+
+\begin{enumerate}
+  \item 三种仿生算法在两类问题上均能正常工作并明显优于随机搜索：连续 Sphere 上三算法
+        均成功收敛到 $f<10^{-2}$；真实 TSP 上各算法均能产出有效巡回，证明仿生优化在实际
+        场景中的可行性与基本有效性。
+  \item ACO 在 TSP 上以绝对优势夺冠（berlin52 gap 仅 0.9\%，Friedman 平均秩 1.0，
+        Nemenyi 显著优于 PSO），体现了"算法--问题"结构契合的重要性 ——
+        ACO 设计之初就是为 TSP 而生，其信息素引导与启发式构造直接对应 TSP 的最短边偏好结构。
+  \item ACO 的连续推广 ACOR 在光滑单峰（Sphere、Rosenbrock）上精度极高，但在强多峰
+        （Rastrigin、Ackley）上明显早熟最差，说明跨问题域外推时算法的强项与短板都会被放大。
+  \item PSO 在连续多峰问题上整体最好（Friedman 平均秩 1.6），但离散化到 TSP 后退化为最弱
+        （平均秩 3.0），暴露了基于速度向量的算法在组合空间中的根本困难。
+  \item GA 在两个场景下均居中，没有明显的天花板，但也没有突出的强项 ——
+        作为重组型通用框架，它的"全能"也意味着"在任何具体问题上都不是第一名"。
+  \item No Free Lunch 定理在本报告中得到完整实证：ACO 与 PSO 在不同场景互换冠/末位、
+        GA 始终居中。在真实选型时应先分析问题结构（连续或组合、单峰或多峰、维度高低、
+        是否带约束），再匹配相应算法或其专用变体。
+\end{enumerate}
+
+% =========================================================
+\appendix
+\section*{附录\ \ 关键公式}
+\addcontentsline{toc}{section}{附录\ \ 关键公式}
+
+\paragraph{Appendix C 测试函数（维度 $d$，最小化，全局最优 $f^{\ast}=0$）。}
+\begin{align*}
+  f_{\rm Sphere}(\bm{x})     &= \sum_{i=1}^{d} x_i^2, \\
+  f_{\rm Rosenbrock}(\bm{x}) &= \sum_{i=1}^{d-1}\!\Big[\,100\,(x_{i+1}-x_i^{\,2})^2+(x_i-1)^2\Big], \\
+  f_{\rm Rastrigin}(\bm{x})  &= 10\,d + \sum_{i=1}^{d}\!\Big[\,x_i^{\,2}-10\cos(2\pi x_i)\Big], \\
+  f_{\rm Ackley}(\bm{x})     &= -20\exp\!\bigg(\!-0.2\sqrt{\tfrac{1}{d}\textstyle\sum x_i^{\,2}}\bigg)
+                               -\exp\!\bigg(\tfrac{1}{d}\textstyle\sum\cos(2\pi x_i)\bigg) + 20 + e, \\
+  f_{\rm Griewank}(\bm{x})   &= \sum_{i=1}^{d}\frac{x_i^{\,2}}{4000} - \prod_{i=1}^{d}\cos\!\left(\frac{x_i}{\sqrt{i}}\right) + 1.
+\end{align*}
+
+\paragraph{TSP 巡回长度与 EUC\_2D 距离}
+对排列 $\pi=(\pi_1,\dots,\pi_n)$，巡回长度为
+\[
+  L(\pi)=\sum_{i=1}^{n-1} d(\pi_i,\pi_{i+1}) + d(\pi_n,\pi_1).
+\]
+TSPLIB 约定的 EUC\_2D 距离：$d(u,v)=\mathrm{round}\!\big(\sqrt{(x_u-x_v)^2+(y_u-y_v)^2}\big)$。
+相对已知最优的差距：$\mathrm{gap}\,\% = (L_{\rm best}-L^{\ast})/L^{\ast}\times 100\%$。
+
+\paragraph{ACOR 高斯核采样（连续 ACO）}
+按解档案中第 $l$ 个解的 rank 权重 $w_l$ 选定引导解，对每一维 $i$ 抽样
+\[
+  x_i \sim \mathcal{N}\!\Big(\mu_{l,i},\,\sigma_{l,i}^{\,2}\Big),\qquad
+  \mu_{l,i} = s_{l,i},\qquad
+  \sigma_{l,i} = \frac{\xi}{k-1}\sum_{e=1}^{k}\bigl|\,s_{e,i}-s_{l,i}\,\bigr|.
+\]
+新蚁与档案合并后按目标值排序、保留最优 $k$ 个，完成一次"信息素更新"。
+
+\paragraph{Ant System 信息素更新（TSP ACO）}
+所有蚂蚁完成巡回构造后，先按比率 $\rho$ 蒸发，再按巡回质量沉积：
+\[
+  \tau_{ij} \leftarrow (1-\rho)\,\tau_{ij} + \sum_{a=1}^{m}\Delta\tau_{ij}^{(a)},\qquad
+  \Delta\tau_{ij}^{(a)} =
+    \begin{cases}
+      Q/L_a, & (i,j)\in T_a, \\
+      0, & \text{其他.}
+    \end{cases}
+\]
+蚂蚁 $a$ 从当前城市 $i$ 选择下一城市 $j$ 的概率：
+\[
+  p_{ij}^{(a)} \;\propto\; [\tau_{ij}]^{\alpha}\,[\eta_{ij}]^{\beta},\qquad \eta_{ij}=1/d_{ij}.
+\]
+
+\paragraph{交换序列离散 PSO（TSP PSO）}
+将位置定义为排列 $X$，速度定义为有序交换算子序列
+$V=[(i_1,j_1),(i_2,j_2),\dots]$。每代以惯性概率 $w$、认知概率 $c_1$、社会概率 $c_2$
+分别把"$X$ 变成 $p_{\rm best}$ / $g_{\rm best}$ 所需的交换序列"按位概率施加到 $X$ 上：
+\[
+  X^{(t+1)} = X^{(t)} \oplus w\!\cdot\! V^{(t)}
+              \oplus c_1\!\cdot\!(p_{\rm best}\!\ominus\!X^{(t)})
+              \oplus c_2\!\cdot\!(g_{\rm best}\!\ominus\!X^{(t)}),
+\]
+其中 $\ominus$ 表示"从一个排列到另一个排列所需的交换序列"，$\oplus$ 表示"按概率
+连续应用交换算子"。
+
+
+
+\end{document}
