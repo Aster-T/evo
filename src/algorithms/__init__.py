@@ -1,14 +1,11 @@
-"""三种进化算法（均为最大化器，针对动态优化做了变化响应）。
+"""GA / ACO / PSO 三种算法，分连续（测试函数）与组合（TSP）两种形态。
 
-GMPB 中 f(x) 为待最大化的适应度（峰为极大值，全局最优 = max 峰高）。
-所有算法只通过 Benchmark.evaluate 访问目标函数，并在 benchmark.changed 时执行
-变化响应（重评历史 + 部分重启），以适配动态优化问题（DOP）。
+- 连续：GA(实数) / PSO(标准) / ACO=ACOR(连续蚁群)  —— src.algorithms.continuous
+- TSP ：GA(排列) / PSO(交换序列) / ACO(Ant System) —— src.algorithms.tsp
 """
-from .base import Optimizer
-from .ga import GA
-from .pso import PSO
-from .de import DE
+from .continuous import CONTINUOUS_ALGORITHMS
+from .tsp import TSP_ALGORITHMS
 
-ALGORITHMS = {"GA": GA, "PSO": PSO, "DE": DE}
+ALGORITHM_NAMES = ["GA", "ACO", "PSO"]
 
-__all__ = ["Optimizer", "GA", "PSO", "DE", "ALGORITHMS"]
+__all__ = ["CONTINUOUS_ALGORITHMS", "TSP_ALGORITHMS", "ALGORITHM_NAMES"]
