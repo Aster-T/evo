@@ -8,9 +8,8 @@ figures/
 # 课程参考资料（含受版权保护的教材 PDF，不入库）
 docs/
 
-# LaTeX 编译产物：除最终 PDF 外不入库
-report/out/*
-!report/out/report.pdf
+# 报告（含 LaTeX 源、PDF 与编译产物）不入库
+report/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
