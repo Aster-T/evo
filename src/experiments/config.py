@@ -1,45 +1,38 @@
-"""实验实例与算法参数集中配置。
+"""实验配置：测试函数实例 + TSP 实例 + 三算法参数 + 重复次数。
 
-6 个问题实例覆盖 4 个差异维度：峰数量、维度、变化幅度、变化频率。
-其余 GMPB 参数（高度/宽度/角度/不规则性范围与 severity）取官方默认（见 GMPBConfig）。
+仿真数据（连续）：5 个 Appendix C 函数，统一维度 d=30。
+真实数据（组合）：4 个 TSPLIB 真实城市坐标实例（a280 作可选大规模）。
 """
 from __future__ import annotations
 
-from src.gmpb import GMPBConfig
-
-# 统一环境数与重复次数
-ENVIRONMENT_NUMBER = 50
+# —— 重复与预算 ——
 N_REPEATS = 15
 SEEDS = list(range(N_REPEATS))
+FUNC_DIM = 30
+FUNC_MAX_EVALS = 30000
+TSP_MAX_EVALS = 20000
+QUICK_FUNC_EVALS = 5000
+QUICK_TSP_EVALS = 5000
 
-# 6 个问题实例：仅覆盖区分性参数，其余用 GMPBConfig 默认（完整 GMPB 地形）
-INSTANCES: dict[str, dict] = {
-    "F1":  dict(peak_number=5,  dim=5,  shift_severity=1.0, change_frequency=5000),  # 简单基线
-    "F4":  dict(peak_number=50, dim=5,  shift_severity=1.0, change_frequency=5000),  # 多峰挑战
-    "F8":  dict(peak_number=10, dim=5,  shift_severity=1.0, change_frequency=500),   # 快速变化
-    "F10": dict(peak_number=10, dim=10, shift_severity=1.0, change_frequency=5000),  # 中维度
-    "F11": dict(peak_number=10, dim=20, shift_severity=1.0, change_frequency=5000),  # 高维度
-    "F12": dict(peak_number=10, dim=5,  shift_severity=5.0, change_frequency=5000),  # 大幅变化
+# —— 仿真：测试函数实例（名称即 src.benchmarks.FUNCTIONS 的 key）——
+FUNCTION_INSTANCES = ["Sphere", "Rosenbrock", "Rastrigin", "Ackley", "Griewank"]
+
+# —— 真实：TSP 实例（a280 默认不跑，规模大较慢）——
+TSP_INSTANCES = ["berlin52", "eil51", "kroA100", "ch150"]
+TSP_INSTANCES_FULL = ["berlin52", "eil51", "kroA100", "ch150", "a280"]
+
+ALGORITHM_NAMES = ["GA", "ACO", "PSO"]
+
+# —— 连续算法参数（src.algorithms.continuous）——
+CONT_PARAMS: dict[str, dict] = {
+    "GA":  dict(pop_size=50, crossover_prob=0.9, eta_c=15.0, eta_m=20.0),
+    "ACO": dict(archive_size=50, n_ants=10, q=1e-4, xi=0.85),   # ACOR
+    "PSO": dict(swarm_size=50, w_max=0.9, w_min=0.4, c1=2.0, c2=2.0, v_frac=0.2),
 }
 
-INSTANCE_NOTES = {
-    "F1": "简单基线", "F4": "多峰挑战", "F8": "快速变化",
-    "F10": "中等维度", "F11": "高维度", "F12": "大幅变化",
+# —— TSP 算法参数（src.algorithms.tsp）——
+TSP_PARAMS: dict[str, dict] = {
+    "GA":  dict(pop_size=100, crossover_prob=0.9, mutation_prob=0.2, tournament=3),
+    "ACO": dict(alpha=1.0, beta=2.0, rho=0.5, Q=1.0),           # Ant System
+    "PSO": dict(swarm_size=50, w=0.3, c1=0.7, c2=0.9),         # 交换序列离散 PSO
 }
-
-# 算法参数：统一种群 50；区分统一参数与算法专属参数
-ALGO_PARAMS: dict[str, dict] = {
-    "GA":  dict(pop_size=50, crossover_prob=0.9, eta_c=15.0, eta_m=20.0,
-                restart_fraction=0.5),
-    "PSO": dict(n_swarms=5, swarm_size=10, chi=0.7298, c1=2.05, c2=2.05,
-                r_cloud=1.0, quantum_fraction=0.5),
-    "DE":  dict(pop_size=50, F=0.5, CR=0.9, restart_fraction=0.3),
-}
-
-ALGORITHM_NAMES = ["GA", "PSO", "DE"]
-
-
-def build_config(instance_name: str, environment_number: int = ENVIRONMENT_NUMBER) -> GMPBConfig:
-    """根据实例名构造完整的 GMPBConfig。"""
-    spec = INSTANCES[instance_name]
-    return GMPBConfig(environment_number=environment_number, **spec)

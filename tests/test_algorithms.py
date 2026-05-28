@@ -1,40 +1,56 @@
+"""测试 6 个算法（连续 ×3，TSP ×3）：能跑满预算并明显优于随机搜索。"""
 import numpy as np
 import pytest
 
-from src.gmpb import GMPBConfig, Benchmark
-from src.algorithms import ALGORITHMS
+from src.algorithms.continuous import CONTINUOUS_ALGORITHMS
+from src.algorithms.tsp import TSP_ALGORITHMS
+from src.benchmarks import FUNCTIONS, ContinuousObjective
+from src.tsp import TSPProblem
 
 
-@pytest.fixture
-def cfg():
-    return GMPBConfig(dim=5, peak_number=5, change_frequency=1000, environment_number=5)
+def _random_search_continuous(name, dim, max_evals, seed):
+    obj = ContinuousObjective(FUNCTIONS[name], dim=dim, max_evals=max_evals)
+    rng = np.random.default_rng(seed)
+    while not obj.done:
+        obj.evaluate(rng.uniform(obj.lb, obj.ub, (50, dim)))
+    return obj.best_f
 
 
-@pytest.mark.parametrize("name", ["GA", "PSO", "DE"])
-def test_runs_to_budget(name, cfg):
-    bench = Benchmark(cfg, seed=0)
-    algo = ALGORITHMS[name](cfg.dim, cfg.min_coordinate, cfg.max_coordinate,
-                            np.random.default_rng(0))
-    algo.run(bench)
-    assert bench.done
-    assert bench.fe == bench.max_evals
-    assert np.isfinite(bench.offline_error)
-    assert bench.offline_error >= 0
+@pytest.mark.parametrize("name", list(CONTINUOUS_ALGORITHMS))
+def test_continuous_runs_and_beats_random(name):
+    rs = _random_search_continuous("Sphere", 10, 5000, 0)
+    obj = ContinuousObjective(FUNCTIONS["Sphere"], dim=10, max_evals=5000)
+    CONTINUOUS_ALGORITHMS[name](obj, np.random.default_rng(0)).run()
+    assert obj.done and obj.fe == obj.max_evals
+    assert obj.best_f < rs                      # 优于随机搜索
 
 
-@pytest.mark.parametrize("name", ["GA", "PSO", "DE"])
-def test_beats_random_search(name, cfg):
-    """优化器的 offline error 应明显低于纯随机搜索。"""
-    # 随机搜索基线
-    rb = Benchmark(cfg, seed=1)
-    rng = np.random.default_rng(123)
-    while not rb.done:
-        rb.evaluate(rng.uniform(-50, 50, size=(50, cfg.dim)))
-        if rb.changed:
-            rb.acknowledge_change()
+def test_acor_solves_sphere():
+    """ACOR 在单峰 Sphere 上应收敛到接近 0。"""
+    obj = ContinuousObjective(FUNCTIONS["Sphere"], dim=10, max_evals=10000)
+    CONTINUOUS_ALGORITHMS["ACO"](obj, np.random.default_rng(0)).run()
+    assert obj.best_f < 1e-6
 
-    ob = Benchmark(cfg, seed=1)
-    algo = ALGORITHMS[name](cfg.dim, cfg.min_coordinate, cfg.max_coordinate,
-                            np.random.default_rng(123))
-    algo.run(ob)
-    assert ob.offline_error < rb.offline_error
+
+def _random_search_tsp(inst, max_evals, seed):
+    p = TSPProblem(inst, max_evals=max_evals)
+    rng = np.random.default_rng(seed)
+    while not p.done:
+        p.evaluate(rng.permutation(p.n))
+    return p.best_len
+
+
+@pytest.mark.parametrize("name", list(TSP_ALGORITHMS))
+def test_tsp_runs_and_beats_random(name):
+    rs = _random_search_tsp("berlin52", 3000, 0)
+    p = TSPProblem("berlin52", max_evals=3000)
+    TSP_ALGORITHMS[name](p, np.random.default_rng(0)).run()
+    assert p.done
+    assert p.best_len < rs                      # 优于随机搜索
+
+
+def test_aco_near_optimal_berlin52():
+    """ACO 是 TSP 本职算法，berlin52 上 gap 应较小（<15%）。"""
+    p = TSPProblem("berlin52", max_evals=10000)
+    TSP_ALGORITHMS["ACO"](p, np.random.default_rng(0)).run()
+    assert p.gap() < 15.0
